@@ -1,0 +1,160 @@
+id: pdf-reorder-project
+name: PDF Reorderer (project specification)
+version: 1.0
+summary: |-
+  Especificação completa do projeto "pdf_utils/pdf_reorder". Contém
+  descrição da arquitetura, mapa de arquivos, modos de reordenacao,
+  exemplos de execução e dependências. Envie somente este arquivo (e os
+  outros `*.specs.yaml` em `modes/`) a outro desenvolvedor para que ele
+  entenda 100% do sistema e consiga operar/inspecionar o comportamento.
+
+description: |-
+  O projeto provê uma ferramenta simples de linha de comando para reordenar
+  páginas de PDFs visando diferentes formas de impressão (duas pilhas,
+  diagonal local, livreto/booklet e assinaturas de 16 páginas para costura).
+  O pacote é intencionalmente plano: o único entrypoint é o módulo
+  `pdf_reorderer.__main__` (invocável com `python -m pdf_reorderer`).
+
+project_layout:
+  root_files:
+    - path: pdf_reorder.specs.yaml
+      description: Este arquivo (especificação do projeto inteira).
+    - path: crop_pdf.sh
+      description: Script auxiliar para crop/trim de PDFs (bash).
+  package: pdf_reorderer/
+  package_description: |-
+    Pacote Python com o entrypoint único `__main__.py` e um diretório
+    `modes/` contendo módulos (um por modo) e arquivos `*.specs.yaml` por modo.
+  package_files:
+    - path: pdf_reorderer/__main__.py
+      description: CLI principal. Suporta single-file e batch (--in-dir/--out-dir).
+    - path: pdf_reorderer/modes/shared.py
+      description: Helpers compartilhados (carregar pypdf, padding, reordenacao).
+    - path: pdf_reorderer/modes/duas_pilhas.py
+      description: Implementacao do modo "duas-pilhas" (blocos de 4).
+    - path: pdf_reorderer/modes/diagonal_local.py
+      description: Implementacao do modo "diagonal-local" (blocos locais de 4).
+    - path: pdf_reorderer/modes/booklet.py
+      description: Implementacao do modo "booklet" (livreto tradicional).
+    - path: pdf_reorderer/modes/assinatura_16.py
+      description: Implementacao do modo "assinatura-16" (assinaturas de 16 páginas).
+    - path: pdf_reorderer/modes/*.specs.yaml
+      description: Metadados por modo (conteudo humano/maquina legível).
+
+design_decisions:
+  - flat_package: |-
+      Mantemos a raiz do pacote enxuta: somente `__main__.py` e o diretório
+      `modes/`. Não usamos `__init__.py` intencionais para manter o layout
+      simples e evitar regras de import complexas.
+  - no_pycache: |-
+      O entrypoint desativa escrita de bytecode com
+      `sys.dont_write_bytecode = True` para evitar gerar `__pycache__` quando
+      usado por desenvolvedores/usuários.
+  - zero_based_indexing: |-
+      As rotinas `gerar_ordem(...)` retornam uma lista de índices zero-based
+      (inteiros) e `None` para páginas em branco; o `reordenar_pdf` do `shared`
+      consome essa lista e monta o PDF de saída.
+
+modes_summary:
+  - id: duas-pilhas
+    file: pdf_reorderer/modes/duas_pilhas.py
+    spec: pdf_reorderer/modes/duas_pilhas.specs.yaml
+    summary: Reordena por duas pilhas independentes (blocos de 4)
+  - id: diagonal-local
+    file: pdf_reorderer/modes/diagonal_local.py
+    spec: pdf_reorderer/modes/diagonal_local.specs.yaml
+    summary: Reordena por bloco local de 4: pattern [a,c,d,b]
+  - id: booklet
+    file: pdf_reorderer/modes/booklet.py
+    spec: pdf_reorderer/modes/booklet.specs.yaml
+    summary: Reordena para montagem de livreto (outer-to-inner pairing)
+  - id: assinatura-16
+    file: pdf_reorderer/modes/assinatura_16.py
+    spec: pdf_reorderer/modes/assinatura_16.specs.yaml
+    summary: Assinaturas de 16 páginas para costura; reinicia a cada bloco
+
+cli_interface:
+  entrypoint: python -m pdf_reorderer
+  modes_flag: --modo {assinatura-16,duas-pilhas,diagonal-local,booklet}
+  single_file_usage: |
+    python3 -m pdf_reorderer entrada.pdf saida.pdf --modo booklet
+    - Compatibilidade com uso histórico.
+  batch_usage: |
+    PYTHONDONTWRITEBYTECODE=1 python3 -m pdf_reorderer --in-dir in --out-dir out --modo assinatura-16
+    - Processa todos os `*.pdf` em `in/` e grava em `out/` com o mesmo nome.
+  exit_codes:
+    0: Success (all files processed)
+    1: Error (missing dir or file error, or at least one file failed)
+    2: Usage/help printed
+
+data_flow:
+  - step: read
+    description: O `shared.carregar_pdf_lib()` usa `pypdf` (ou PyPDF2 se `pypdf` não
+      estiver disponível) para abrir o PDF de entrada.
+  - step: generate_order
+    description: A função `gerar_ordem(total_paginas)` do modo retorna uma lista
+      de índices (0-based) e `None` para páginas em branco.
+  - step: write
+    description: `shared.reordenar_pdf` cria páginas em branco conforme `None`
+      e escreve as páginas reordenadas no arquivo de saída.
+
+dependencies:
+  python: '>=3.8'
+  pip_packages:
+    - pypdf  # preferido
+    - PyPDF2 # fallback se pypdf nao estiver disponivel
+
+runtime_notes:
+  - The package intentionally sets `sys.dont_write_bytecode = True` in the
+    entrypoint so executing the CLI will not create `__pycache__` directories.
+  - The CLI respects `PYTHONDONTWRITEBYTECODE=1` as well when shown in examples.
+
+developer_notes:
+  - Structure is simple; to add a new mode:
+    1. Create `pdf_reorderer/modes/new_mode.py` with `def gerar_ordem(total_paginas)`.
+    2. Add a `pdf_reorderer/modes/new_mode.specs.yaml` with human-readable spec.
+    3. Import and register the new mode in `pdf_reorderer/__main__.py` under `MODOS`.
+  - Tests: there are no automated tests in the repository; for quick verification
+    use small sample PDFs and run the CLI in batch or single-file mode.
+
+examples:
+  - name: Batch run (assinatura-16)
+    commands: |
+      mkdir -p in out
+      cp samples/any.pdf in/
+      PYTHONDONTWRITEBYTECODE=1 python3 -m pdf_reorderer --in-dir in --out-dir out --modo assinatura-16
+  - name: Single-file run
+    commands: |
+      python3 -m pdf_reorderer entrada.pdf saida.pdf --modo duas-pilhas
+
+appendix:
+  modes_inlined:
+    - id: duas-pilhas
+      spec: |
+        id: duas-pilhas
+        name: Duas pilhas
+        block_size: 4
+        pattern: [a1, b1, b2, a2]
+        description: Reordena as paginas para que, apos impressao e corte,
+          resultem duas pilhas independentes e ordenadas.
+    - id: diagonal-local
+      spec: |
+        id: diagonal-local
+        name: Diagonal local
+        block_size: 4
+        pattern: [a, c, d, b]
+        description: Reordena cada bloco de quatro paginas no padrao diagonal.
+    - id: booklet
+      spec: |
+        id: booklet
+        name: Booklet
+        block_size: 4
+        pattern: [last, first, second, second_last]
+        description: Reordena para formato livreto/folheto dobrado ao meio.
+    - id: livreto-costura
+      spec: |
+        id: livreto-costura
+        name: Livreto para costura
+        block_size: 16
+        pattern: [16,1, 2,15, 14,3, 4,13, 12,5, 6,11, 10,7, 8,9]
+        description: Reordena para livros em formato de livreto com costura.

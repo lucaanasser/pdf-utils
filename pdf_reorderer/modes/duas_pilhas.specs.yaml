@@ -1,0 +1,15 @@
+id: duas-pilhas
+name: Duas pilhas
+mode: duas-pilhas
+description: >-
+  Reordena as paginas para que, apos impressao frente e verso e corte ao meio,
+  resultem duas pilhas independentes e ordenadas.
+block_size: 4
+padding: multiple-of-4
+pattern: [a1, b1, b2, a2]
+post_cut_effect:
+  - stack_a: [a1, a2]
+  - stack_b: [b1, b2]
+notes:
+  - A estrategia divide o PDF em duas metades logicas antes de montar cada bloco.
+  - Paginas faltantes sao preenchidas com folhas em branco.

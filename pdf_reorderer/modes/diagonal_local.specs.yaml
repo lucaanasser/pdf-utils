@@ -1,0 +1,15 @@
+id: diagonal-local
+name: Diagonal local
+mode: diagonal-local
+description: >-
+  Reordena cada bloco de quatro paginas no padrao diagonal para compensar a
+  inversao causada pela impressao frente e verso com corte local.
+block_size: 4
+padding: multiple-of-4
+pattern: [a, c, d, b]
+post_cut_effect:
+  - block: [a, b, c, d]
+  - printed: [a, c, d, b]
+notes:
+  - E a estrategia mais simples e previsivel para blocos locais.
+  - Paginas faltantes sao preenchidas com folhas em branco.

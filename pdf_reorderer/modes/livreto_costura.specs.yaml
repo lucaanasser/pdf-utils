@@ -1,0 +1,111 @@
+id: livreto-costura
+name: Livreto para costura (assinaturas configuráveis)
+version: 1.0
+
+summary: |-
+  Reordena as páginas de um PDF em assinaturas (cadernos) independentes, cada
+  uma adequada para impressão frente-e-verso, dobra e costura. O tamanho de
+  cada assinatura é configurável via --block-size e deve ser múltiplo de 4.
+
+parameters:
+  block_size:
+    type: integer
+    default: 16
+    constraint: múltiplo de 4, mínimo 4
+    description: |-
+      Número de páginas lógicas por assinatura/caderno.
+      Exemplos válidos: 8, 12, 16, 20, 24, 28, 32, 40, 48.
+      Valores típicos por uso:
+        16  → caderno pequeno, folha A4 → livro A5
+        20  → caderno médio
+        32  → assinatura padrão de editoração
+
+physical_correspondence:
+  formula: num_folhas_por_assinatura = block_size / 4
+  examples:
+    - block_size: 16
+      folhas_fisicas: 4
+      paginas_logicas: 16
+    - block_size: 20
+      folhas_fisicas: 5
+      paginas_logicas: 20
+    - block_size: 32
+      folhas_fisicas: 8
+      paginas_logicas: 32
+
+imposition_logic:
+  description: |-
+    Para um bloco de B páginas lógicas (numeradas 1..B dentro do bloco),
+    a imposição outer-to-inner produz a seguinte ordem de impressão por folha:
+
+      folha k (k = 0 .. B/4 - 1):
+        face frente : [B - 2k,  2k + 1]   (par lado-a-lado na impressora)
+        face verso  : [2k + 2,  B - 2k - 1]
+
+    A lista completa de índices para saída é a concatenação dessas faces
+    para k = 0, 1, ..., B/4 - 1 — repetida para cada assinatura do documento.
+
+example_block_size_16:
+  description: Ordem de impressão para uma assinatura de 16 páginas (4 folhas)
+  folhas:
+    - folha: 1
+      face_frente: [16, 1]
+      face_verso:  [2, 15]
+    - folha: 2
+      face_frente: [14, 3]
+      face_verso:  [4, 13]
+    - folha: 3
+      face_frente: [12, 5]
+      face_verso:  [6, 11]
+    - folha: 4
+      face_frente: [10, 7]
+      face_verso:  [8, 9]
+  impressao_sequencial: [16,1, 2,15, 14,3, 4,13, 12,5, 6,11, 10,7, 8,9]
+
+example_block_size_8:
+  description: Ordem de impressão para uma assinatura de 8 páginas (2 folhas)
+  folhas:
+    - folha: 1
+      face_frente: [8, 1]
+      face_verso:  [2, 7]
+    - folha: 2
+      face_frente: [6, 3]
+      face_verso:  [4, 5]
+  impressao_sequencial: [8,1, 2,7, 6,3, 4,5]
+
+padding:
+  description: |-
+    Se o total de páginas do documento não for múltiplo de block_size, o último
+    caderno é completado com páginas em branco (None na lista de índices) até
+    atingir o tamanho completo da assinatura.
+
+cli_usage:
+  single_file: |
+    python3 -m pdf_reorderer entrada.pdf saida.pdf --modo livreto-costura --block-size 16
+  batch: |
+    python3 -m pdf_reorderer --in-dir in/ --out-dir out/ --modo livreto-costura --block-size 20
+
+integration_notes:
+  - |-
+    Para registrar este modo em __main__.py, importe o módulo e adicione
+    ao dicionário MODOS, passando block_size como argumento parcial:
+
+      from pdf_reorderer.modes import livreto_costura
+      import functools
+
+      MODOS = {
+        ...
+        "livreto-costura": functools.partial(
+            livreto_costura.gerar_ordem, block_size=args.block_size
+        ),
+      }
+
+  - |-
+    O argumento --block-size deve ser adicionado ao parser do __main__.py:
+
+      parser.add_argument(
+          "--block-size",
+          type=int,
+          default=16,
+          help="Páginas por assinatura (múltiplo de 4). Padrão: 16.",
+      )

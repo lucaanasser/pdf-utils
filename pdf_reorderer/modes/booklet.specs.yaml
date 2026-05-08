@@ -1,0 +1,15 @@
+id: booklet
+name: Booklet
+mode: booklet
+description: >-
+  Reordena as paginas para montagem de livreto tradicional, emparelhando a
+  primeira com a ultima, a segunda com a penultima e assim por diante.
+block_size: 4
+padding: multiple-of-4
+pattern: [last, first, second, second_last]
+post_cut_effect:
+  - binding: livreto dobrado ao meio
+  - sequence: outer-to-inner
+notes:
+  - Indicado para impressao de cadernos e folhetos dobrados.
+  - Paginas faltantes sao preenchidas com folhas em branco.
