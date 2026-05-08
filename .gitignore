@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.pyc
+
+# Build/cache
+.pytest_cache/
+
+# PDFs (entrada/saida e quaisquer outros)
+*.pdf
